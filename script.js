@@ -1,100 +1,135 @@
-async function searchPlaces() {
-    const city = document.getElementById("locationInput").value.trim();
-    const placesContainer = document.getElementById("placesContainer");
-    const loading = document.getElementById("loading");
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const path = require('path');
 
-    placesContainer.innerHTML = "";
+// FIXED LINE: Removed the accidental 'report =' typo here
+const app = express();
+app.use(cors());
+app.use(express.static(path.join(__dirname)));
 
-    if (!city) {
-        loading.innerText = "Please enter a city or place.";
-        return;
-    }
+const PORT = 3000;
+const WIKI_API_URL = 'https://en.wikipedia.org/w/api.php';
+const WIKI_HEADERS = {
+    'User-Agent': 'TouristGuidePracticeApp/2.0 (https://example.com)'
+};
 
-    loading.innerText = "Fetching places from Wikipedia...";
+function formatPage(page) {
+    return {
+        id: page.pageid ? page.pageid.toString() : '',
+        name: page.title || 'Unknown Destination',
+        img: page.thumbnail?.source || 'https://via.placeholder.com/500x300?text=No+Image',
+        shortDesc: page.extract ? page.extract.substring(0, 140) + '...' : 'No description available.',
+        fullDesc: page.extract || 'No details available from Wikipedia.',
+        lat: page.coordinates?.[0]?.lat || null,
+        lon: page.coordinates?.[0]?.lon || null,
+        timings: 'Daily 09:00 AM - 06:00 PM (Varies)',
+        rating: '⭐ 4.6/5',
+        phone: 'Local Tourist Info Available Counter',
+        website: page.fullurl || 'Not available'
+    };
+}
+
+/* API: SEARCH PLACES */
+app.get('/api/places', async (req, res) => {
+    const city = req.query.city?.trim();
+    if (!city) return res.status(400).json({ message: 'Enter a valid location input.' });
 
     try {
-        const response = await fetch(
-            `/api/places?city=${encodeURIComponent(city)}`
-        );
-
-        if (!response.ok) {
-            throw new Error("Backend error");
-        }
-
-        const data = await response.json();
-        loading.innerText = "";
-
-        if (!Array.isArray(data) || data.length === 0) {
-            placesContainer.innerHTML = "<p>No places found.</p>";
-            return;
-        }
-
-        data.forEach((place) => {
-            const card = document.createElement("div");
-            card.classList.add("place-card");
-
-            card.innerHTML = `
-                <img src="${place.img || 'https://via.placeholder.com/400x250?text=No+Image'}" alt="${place.name}">
-                <h3>${place.name}</h3>
-                <p>${place.shortDesc || "No description available."}</p>
-                <button onclick="viewDetails('${place.id}')">View Details</button>
-            `;
-
-            placesContainer.appendChild(card);
+        const response = await axios.get(WIKI_API_URL, {
+            headers: WIKI_HEADERS,
+            params: {
+                action: 'query',
+                format: 'json',
+                origin: '*',
+                generator: 'search',
+                gsrlimit: 12,
+                gsrsearch: `tourist attractions in ${city}`,
+                prop: 'pageimages|extracts|info|coordinates',
+                exintro: true,
+                explaintext: true,
+                pilimit: 'max',
+                pithumbsize: 500,
+                inprop: 'url'
+            }
         });
 
+        const pages = response.data.query?.pages || {};
+        const places = Object.values(pages)
+            .sort((a, b) => (a.index || 0) - (b.index || 0))
+            .map(formatPage);
+            
+        res.json(places);
     } catch (error) {
-        console.error(error);
-        loading.innerText = "Cannot connect to backend.";
+        res.status(500).json({ message: 'Wikipedia API search failure' });
     }
-}
+});
 
-function quickSearch(city) {
-    document.getElementById("locationInput").value = city;
-    searchPlaces();
-}
+/* API: PLACE DETAILS */
+app.get('/api/place/:id', async (req, res) => {
+    const id = req.params.id;
+    try {
+        const response = await axios.get(WIKI_API_URL, {
+            headers: WIKI_HEADERS,
+            params: {
+                action: 'query',
+                format: 'json',
+                origin: '*',
+                pageids: id,
+                prop: 'pageimages|extracts|info|coordinates',
+                explaintext: true,
+                pithumbsize: 800,
+                inprop: 'url'
+            }
+        });
 
-async function viewDetails(id) {
-    const container = document.getElementById("placesContainer");
-    const loading = document.getElementById("loading");
+        const pages = response.data.query?.pages || {};
+        const page = pages[id];
+        res.json(page ? formatPage(page) : null);
+    } catch (error) {
+        res.status(500).json({ message: 'Wikipedia details failure' });
+    }
+});
 
-    loading.innerText = "Fetching details from Wikipedia...";
+/* API: SHOP EXTRACTS WITH GEOLOCATION MAP COORDINATES */
+app.get('/api/shops', async (req, res) => {
+    const { lat, lon } = req.query;
+    if (!lat || !lon) return res.status(400).json({ message: 'Coordinates missing' });
 
     try {
-        const response = await fetch(
-            `/api/place/${encodeURIComponent(id)}`
-        );
-
-        if (!response.ok) {
-            throw new Error("Failed");
-        }
-
-        const place = await response.json();
-        loading.innerText = "";
-
-        container.innerHTML = `
-            <div class="detail-view" style="padding:20px;text-align:center;">
-                <button onclick="searchPlaces()">← Back</button>
-
-                <img src="${place.img || 'https://via.placeholder.com/500x300?text=No+Image'}"
-                     style="width:100%;max-width:500px;margin:20px 0;">
-
-                <h2>${place.name}</h2>
-                <p><strong>About:</strong> ${place.fullDesc || "No details available."}</p>
-                <p><strong>Description:</strong> ${place.shortDesc || "Not available"}</p>
-                <p><strong>Timings:</strong> ${place.timings || "Not available"}</p>
-                <p><strong>Rating:</strong> ${place.rating || "Not available"}</p>
-                <p><strong>Phone:</strong> ${place.phone || "Not available"}</p>
-                <p><strong>Website:</strong> ${
-                    place.website && place.website !== "Not available"
-                        ? `<a href="${place.website}" target="_blank">Open article</a>`
-                        : "Not available"
-                }</p>
-            </div>
+        const overpassQuery = `
+            [out:json][timeout:15];
+            (
+              node["shop"](around:1500, ${lat}, ${lon});
+              way["shop"](around:1500, ${lat}, ${lon});
+            );
+            out tags center 35;
         `;
+        
+        const response = await axios.post('https://overpass-api.de/api/interpreter', overpassQuery, {
+            headers: { 'Content-Type': 'text/plain' }
+        });
 
+        const shops = (response.data.elements || []).map(element => ({
+            name: element.tags.name || `${element.tags.shop ? element.tags.shop.charAt(0).toUpperCase() + element.tags.shop.slice(1) : 'Local'} Outlet`,
+            type: element.tags.shop || 'Store',
+            lat: element.lat || element.center?.lat || null,
+            lon: element.lon || element.center?.lon || null,
+            street: element.tags['addr:street'] || 'Nearby'
+        }));
+
+        res.json(shops);
     } catch (error) {
-        console.error(error);
-        container.innerHTML = "<p>Could not fetch details.</p>";
+        console.error('Shops Fetch Error:', error.message);
+        res.json([]);
     }
-}
+});
+
+/* CATCH-ALL FOR VIRTUAL ROUTING */
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running at http://127.0.0.1:${PORT}`);
+});
