@@ -17,17 +17,18 @@ const WIKI_HEADERS = {
     'User-Agent': 'TouristGuidePracticeApp/1.0 (https://example.com)'
 };
 
+// Helper to format Wikipedia's raw JSON structure uniformly
 function formatPage(page) {
     return {
-        id: page.pageid.toString(),
-        name: page.title,
+        id: page.pageid ? page.pageid.toString() : '',
+        name: page.title || 'Unknown Destination',
         img: page.thumbnail?.source || 'https://via.placeholder.com/500x300?text=No+Image',
-        shortDesc: page.extract || 'No description available.',
-        fullDesc: page.extract || 'No details available.',
+        shortDesc: page.extract ? page.extract.substring(0, 160) + '...' : 'No description available.',
+        fullDesc: page.extract || 'No details available.', // Fetching full article text
         timings: 'Timing information not available',
         rating: 'N/A',
         phone: 'Not available',
-        website: page.fullurl || 'Not available'
+        website: page.fullurl || 'Not available' // Correctly populated via updated params below
     };
 }
 
@@ -41,12 +42,12 @@ async function searchWikipediaPlaces(city) {
             generator: 'search',
             gsrlimit: 10,
             gsrsearch: `tourist attractions in ${city}`,
-            prop: 'pageimages|extracts|info',
-            exintro: true,
+            prop: 'pageimages|extracts|info', // Combined parameters correctly
+            exintro: true,                  // Short intro summaries for the general results list
             explaintext: true,
             pilimit: 'max',
             pithumbsize: 500,
-            inprop: 'url'
+            inprop: 'url'                   // Tells Wikipedia to populate the .fullurl field
         }
     });
 
@@ -65,19 +66,18 @@ async function getWikipediaPlaceDetails(pageId) {
             origin: '*',
             pageids: pageId,
             prop: 'pageimages|extracts|info',
-            exintro: true,
-            explaintext: true,
+            explaintext: true, // REMOVED exintro: true here so you get the full article for detail view!
             pithumbsize: 800,
             inprop: 'url'
         }
     });
 
     const pages = response.data.query?.pages || {};
-    const page = pages[pageId] || Object.values(pages)[0];
+    const page = pages[pageId];
     return page ? formatPage(page) : null;
 }
 
-/* SEARCH PLACES */
+/* SEARCH PLACES ROUTE */
 app.get('/api/places', async (req, res) => {
     const city = req.query.city?.trim();
 
@@ -94,9 +94,13 @@ app.get('/api/places', async (req, res) => {
     }
 });
 
-/* DETAILS */
+/* DETAILS ROUTE */
 app.get('/api/place/:id', async (req, res) => {
     const id = req.params.id;
+
+    if (!id) {
+        return res.status(400).json({ message: 'Invalid Place ID' });
+    }
 
     try {
         const place = await getWikipediaPlaceDetails(id);

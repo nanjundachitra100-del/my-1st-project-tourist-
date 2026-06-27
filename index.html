@@ -3,44 +3,484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tourist Guide</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+    <title>Smart Tourist Guide - Dashboard Fix</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --panel-bg: #f1f5f9;
+        }
 
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --panel-bg: #1e293b;
+            --primary: #3b82f6;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; display: none; }
+        
+        .theme-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 18px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* Auth Screen */
+        .auth-screen {
+            max-width: 400px;
+            margin: 100px auto;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        .auth-screen h2 { margin-top: 0; }
+        .auth-screen input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; box-sizing: border-box; }
+        .auth-screen button { width: 100%; margin-top: 10px; }
+        .auth-toggle { margin-top: 15px; color: var(--primary); cursor: pointer; font-size: 14px; text-decoration: underline; }
+        
+        .logout-panel { display: flex; justify-content: space-between; align-items: center; background: var(--panel-bg); padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; display: none; border: 1px solid var(--border); }
+        .right-controls { display: flex; align-items: center; gap: 12px; }
+
+        .search-box { display: flex; gap: 10px; max-width: 600px; margin: 0 auto 20px auto; }
+        .search-box input { flex: 1; padding: 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); border-radius: 8px; font-size: 16px; }
+        
+        button { padding: 12px 20px; background-color: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        button:hover { background-color: var(--primary-hover); }
+        .fav-toggle-btn { background-color: #0f172a; color: #fff; }
+        [data-theme="dark"] .fav-toggle-btn { background-color: #334155; }
+        
+        #loading { text-align: center; font-weight: bold; margin: 20px 0; color: var(--text-muted); }
+        
+        /* Grid Layout */
+        .places-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+        .place-card { 
+            background: var(--card-bg); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
+            display: flex; 
+            flex-direction: column;
+            border: 1px solid var(--border);
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+        }
+        .place-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 20px -5px rgba(0,0,0,0.15);
+        }
+        .place-card img { width: 100%; height: 200px; object-fit: cover; }
+        .place-card-body { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; }
+        .place-card h3 { margin: 0 0 10px 0; font-size: 18px; }
+        .place-card p { color: var(--text-muted); font-size: 14px; margin: 0 0 15px 0; flex-grow: 1; }
+        .card-actions { display: flex; gap: 10px; }
+        .card-actions button { flex: 1; padding: 8px; font-size: 14px; }
+        
+        .fav-btn { background-color: var(--panel-bg); color: var(--text-muted); border: 1px solid var(--border); }
+        .fav-btn.active { background-color: #fee2e2; color: var(--danger); border-color: #fca5a5; }
+        
+        .detail-view { background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .back-btn { background-color: #64748b; margin-bottom: 20px; }
+        
+        /* Map Layout Frame */
+        .map-wrapper {
+            width: 100%;
+            height: 350px;
+            border-radius: 12px;
+            margin: 20px 0;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            z-index: 1;
+        }
+        #mapContainer { width: 100%; height: 100%; }
+
+        /* Shop Elements */
+        .shops-section { margin-top: 30px; background: var(--panel-bg); padding: 20px; border-radius: 8px; text-align: left; border: 1px solid var(--border); }
+        .filter-group { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
+        .filter-chip {
+            padding: 6px 14px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .filter-chip.active { background-color: var(--primary); color: white; border-color: var(--primary); }
+        .shops-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+        .shop-item { background: var(--card-bg); padding: 12px; border-radius: 6px; border-left: 4px solid #10b981; font-size: 14px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    </style>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
 <body>
 
-    <section class="hero">
-        <h1>Discover Amazing Tourist Places</h1>
-        <p>Explore beautiful destinations near you</p>
-    </section>
-
-    <div class="container">
-        <h1>Smart Tourist Guide</h1>
-
-        <div class="quick-tags">
-    <button onclick="quickSearch('bengaluru')">Bengaluru</button>
-    <button onclick="quickSearch('delhi')">Delhi</button>
-</div>
-
-        <input type="text" 
-               id="locationInput" 
-               list="locations" 
-               placeholder="Enter city name">
-
-        <datalist id="locations">
-            <option value="Bengaluru">
-            <option value="Delhi">
-            <option value="Mumbai">
-        </datalist>
-
-        <button onclick="searchPlaces()">Search</button>
-
-        <p id="loading"></p>
-
-        <div id="placesContainer"></div>
+<div class="container">
+    <div id="authScreen" class="auth-screen">
+        <h2 id="authTitle">Sign In</h2>
+        <input type="email" id="authEmail" placeholder="Email Address" value="nanjundachitra100@gmail.com">
+        <input type="password" id="authPassword" placeholder="Password" value="12345678">
+        <button id="authBtn" onclick="handleAuthAction()">Sign In</button>
+        <p class="auth-toggle" onclick="toggleAuthMode()" id="authToggleMsg">Don't have an account? Sign Up</p>
     </div>
 
-    <script src="script.js"></script>
+    <div id="appPanel">
+        <div class="logout-panel" id="logoutPanel">
+            <span id="userGreeting">Welcome Explorer</span>
+            <div class="right-controls">
+                <button class="theme-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙</button>
+                <button onclick="logout()" style="padding: 6px 12px; background: var(--danger); font-size:14px;">Sign Out</button>
+            </div>
+        </div>
 
+        <header id="appHeader">
+            <h1>🗺️ Virtual Explorer Guide</h1>
+            <div class="search-box">
+                <input type="text" id="locationInput" placeholder="Enter city (e.g., London, Paris)...">
+                <button onclick="triggerSearch()">Search</button>
+                <button class="fav-toggle-btn" onclick="toggleFavoritesView()" id="favViewBtn">❤️ Favorites (0)</button>
+            </div>
+        </header>
+
+        <div id="loading"></div>
+        <div id="mainContainer"></div>
+    </div>
+</div>
+
+<script>
+    let cachedPlaces = [];
+    let showingFavorites = false;
+    let isSignUpMode = false;
+    
+    let mapInstance = null;
+    let mapMarkersLayer = null;
+    let currentShopsList = [];
+    let activeShopFilter = "all";
+    
+    let currentUser = localStorage.getItem('tourist_currentUser') || null;
+    let favorites = JSON.parse(localStorage.getItem('tourist_favorites')) || [];
+    let activeTheme = localStorage.getItem('tourist_theme') || 'light';
+
+    window.addEventListener('DOMContentLoaded', () => {
+        applyTheme(activeTheme);
+        checkUserSession();
+        window.addEventListener('popstate', () => handleRouting(window.location.pathname));
+        document.getElementById("locationInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") triggerSearch();
+        });
+    });
+
+    function toggleTheme() {
+        activeTheme = activeTheme === 'light' ? 'dark' : 'light';
+        localStorage.setItem('tourist_theme', activeTheme);
+        applyTheme(activeTheme);
+    }
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById("themeToggleBtn").innerText = theme === 'light' ? '🌙' : '☀️';
+    }
+
+    function checkUserSession() {
+        if (currentUser) {
+            document.getElementById("authScreen").style.display = "none";
+            document.getElementById("appHeader").style.display = "block";
+            document.getElementById("logoutPanel").style.display = "flex";
+            document.getElementById("userGreeting").innerText = `Account: ${currentUser}`;
+            updateFavoritesButtonCount();
+            handleRouting(window.location.pathname);
+        } else {
+            document.getElementById("authScreen").style.display = "block";
+            document.getElementById("appHeader").style.display = "none";
+            document.getElementById("logoutPanel").style.display = "none";
+            document.getElementById("mainContainer").innerHTML = "";
+        }
+    }
+
+    /* --- SAFE LOCAL AUTH --- */
+    function handleAuthAction() {
+        const email = document.getElementById("authEmail").value.trim();
+        const password = document.getElementById("authPassword").value;
+        if (!email || !password) return alert("Please fill in all fields");
+
+        currentUser = email;
+        localStorage.setItem('tourist_currentUser', email);
+        checkUserSession();
+    }
+
+    function toggleAuthMode() {
+        isSignUpMode = !isSignUpMode;
+        document.getElementById("authTitle").innerText = isSignUpMode ? "Create Account" : "Sign In";
+        document.getElementById("authBtn").innerText = isSignUpMode ? "Sign Up" : "Sign In";
+    }
+
+    // Fixed typo: mapped properly to simple reset action
+    function logout() {
+        localStorage.removeItem('tourist_currentUser');
+        currentUser = null;
+        checkUserSession();
+    }
+
+    function navigateTo(path) {
+        window.history.pushState({}, "", path);
+        handleRouting(path);
+    }
+
+    function handleRouting(path) {
+        if (!currentUser) return;
+        const containerMain = document.getElementById("mainContainer");
+        containerMain.innerHTML = "";
+
+        if (mapInstance) {
+            mapInstance.remove();
+            mapInstance = null;
+        }
+
+        if (path.startsWith('/place/')) {
+            const placeId = path.split('/place/')[1];
+            renderDetailViewPage(placeId);
+        } else {
+            showingFavorites = (path === '/favorites');
+            updateFavoritesButtonText();
+            if (showingFavorites) {
+                renderPlacesGrid(favorites, "No destinations favorited yet!");
+            } else {
+                renderPlacesGrid(cachedPlaces, "Search for a city above to explore attractions.");
+            }
+        }
+    }
+
+    function triggerSearch() {
+        showingFavorites = false;
+        navigateTo('/');
+        searchPlaces();
+    }
+
+    async function searchPlaces() {
+        const city = document.getElementById("locationInput").value.trim();
+        const loading = document.getElementById("loading");
+        if (!city) return;
+
+        loading.innerText = "Querying locations...";
+        try {
+            const response = await fetch(`/api/places?city=${encodeURIComponent(city)}`);
+            cachedPlaces = await response.json();
+            loading.innerText = "";
+            renderPlacesGrid(cachedPlaces, "No locations matched.");
+        } catch (error) {
+            loading.innerText = "Error pulling server records.";
+        }
+    }
+
+    function renderPlacesGrid(places, emptyMessage) {
+        const containerGrid = document.getElementById("mainContainer");
+        containerGrid.innerHTML = "";
+
+        if (!places || places.length === 0) {
+            mainContainer.innerHTML = `<p style="text-align:center;color:var(--text-muted);">${emptyMessage}</p>`;
+            return;
+        }
+
+        const grid = document.createElement("div");
+        grid.classList.add("places-grid");
+        places.forEach(place => {
+            const isFav = favorites.includes(place.id);
+            const card = document.createElement("div");
+            card.classList.add("place-card");
+            card.innerHTML = `
+                <img src="${place.img}" alt="${place.name}">
+                <div class="place-card-body">
+                    <h3>${place.name}</h3>
+                    <p>${place.shortDesc}</p>
+                    <div class="card-actions">
+                        <button onclick="navigateTo('/place/${place.id}')">Details & Map</button>
+                        <button class="fav-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite('${place.id}', this)">
+                            ${isFav ? '❤️ Saved' : '🤍 Save'}
+                        </button>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+        containerGrid.appendChild(grid);
+    }
+
+    async function renderDetailViewPage(id) {
+        const detailContainer = document.getElementById("mainContainer");
+        const loading = document.getElementById("loading");
+        
+        loading.innerText = "Assembling dynamic dashboard payload...";
+        try {
+            const response = await fetch(`/api/place/${encodeURIComponent(id)}`);
+            const place = await response.json();
+            loading.innerText = "";
+
+            activeShopFilter = "all";
+
+            mainContainer.innerHTML = `
+                <div class="detail-view">
+                    <button class="back-btn" onclick="window.history.back()">← Back</button>
+                    <h2>${place.name}</h2>
+                    <p>${place.fullDesc}</p>
+                    
+                    <h3>🗺️ Live Location Mapping Layout</h3>
+                    <div class="map-wrapper">
+                        <div id="mapContainer"></div>
+                    </div>
+
+                    <div class="shops-section">
+                        <h3>🛍️ Nearby Local Shops & Stores (Within 1.5km)</h3>
+                        <div class="filter-group">
+                            <span class="filter-chip active" id="chip-all" onclick="filterShops('all')">All Shops</span>
+                            <span class="filter-chip" id="chip-cafe" onclick="filterShops('cafe')">☕ Cafes</span>
+                            <span class="filter-chip" id="chip-supermarket" onclick="filterShops('supermarket')">🛒 Grocery</span>
+                            <span class="filter-chip" id="chip-clothes" onclick="filterShops('clothes')">👕 Clothes</span>
+                            <span class="filter-chip" id="chip-souvenir" onclick="filterShops('souvenir')">🎁 Souvenirs</span>
+                        </div>
+                        <div id="shopsLoading">Querying local area stores...</div>
+                        <div id="shopsListContainer" class="shops-list"></div>
+                    </div>
+                </div>
+            `;
+
+            if (place.lat && place.lon) {
+                initializeLeafletMap(place.lat, place.lon, place.name);
+                fetchNearbyShops(place.lat, place.lon);
+            } else {
+                document.getElementById("shopsLoading").innerText = "Geographic map data unavailable for this location.";
+            }
+        } catch (error) {
+            loading.innerText = "Error loading profiles.";
+        }
+    }
+
+    function initializeLeafletMap(lat, lon, landmarkName) {
+        mapInstance = L.map('mapContainer').setView([lat, lon], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapInstance);
+
+        mapMarkersLayer = L.layerGroup().addTo(mapInstance);
+
+        L.marker([lat, lon])
+            .addTo(mapInstance)
+            .bindPopup(`<b>📍 ${landmarkName}</b><br>Tourist Destination Location`)
+            .openPopup();
+    }
+
+    async function fetchNearbyShops(lat, lon) {
+        const shopsLoading = document.getElementById("shopsLoading");
+        try {
+            const res = await fetch(`/api/shops?lat=${lat}&lon=${lon}`);
+            currentShopsList = await res.json();
+            shopsLoading.style.display = "none";
+            renderShopsToView(currentShopsList);
+        } catch (e) {
+            shopsLoading.innerText = "Error pulling local shop records.";
+        }
+    }
+
+    function filterShops(category) {
+        activeShopFilter = category;
+        document.querySelectorAll(".filter-chip").forEach(chip => chip.classList.remove("active"));
+        document.getElementById(`chip-${category}`).classList.add("active");
+
+        if (category === "all") {
+            renderShopsToView(currentShopsList);
+        } else {
+            const filtered = currentShopsList.filter(shop => shop.type.toLowerCase() === category);
+            renderShopsToView(filtered);
+        }
+    }
+
+    function renderShopsToView(shops) {
+        const listContainer = document.getElementById("shopsListContainer");
+        listContainer.innerHTML = "";
+
+        if (mapMarkersLayer) {
+            mapMarkersLayer.clearLayers();
+        }
+
+        if (shops.length === 0) {
+            listContainer.innerHTML = "<p style='font-size: 14px; color: var(--text-muted);'>No matching retail stores found nearby.</p>";
+            return;
+        }
+
+        shops.forEach(shop => {
+            const item = document.createElement("div");
+            item.classList.add("shop-item");
+            item.innerHTML = `<strong>${shop.name}</strong><br><span style="color: var(--text-muted); font-size:12px;">Type: ${shop.type}</span>`;
+            listContainer.appendChild(item);
+
+            if (shop.lat && shop.lon && mapMarkersLayer) {
+                L.marker([shop.lat, shop.lon])
+                    .addTo(mapMarkersLayer)
+                    .bindPopup(`<b>🛍️ ${shop.name}</b><br>Category: ${shop.type}`);
+            }
+        });
+    }
+
+    function toggleFavorite(id, btnElement) {
+        const completeData = cachedPlaces.find(p => p.id === id) || favorites.find(p => p.id === id);
+        if (!completeData) return;
+
+        const favIndex = favorites.findIndex(f => f.id === id);
+        if (favIndex > -1) {
+            favorites.splice(favIndex, 1);
+            btnElement.classList.remove("active");
+            btnElement.innerText = "🤍 Save";
+        } else {
+            favorites.push(completeData);
+            btnElement.classList.add("active");
+            btnElement.innerText = "❤️ Saved";
+        }
+        localStorage.setItem('tourist_favorites', JSON.stringify(favorites));
+        updateFavoritesButtonCount();
+    }
+
+    function toggleFavoritesView() {
+        navigateTo(showingFavorites ? '/' : '/favorites');
+    }
+
+    function updateFavoritesButtonCount() {
+        document.getElementById("favViewBtn").innerText = `❤️ Favorites (${favorites.length})`;
+    }
+
+    function updateFavoritesButtonText() {
+        document.getElementById("favViewBtn").innerText = showingFavorites ? "🌐 Discover" : `❤️ Favorites (${favorites.length})`;
+    }
+</script>
 </body>
 </html>
