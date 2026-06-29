@@ -4,8 +4,6 @@ const axios = require('axios');
 const path = require('path');
 
 const app = express();
-
-// Middleware configuration
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -16,7 +14,6 @@ const WIKI_HEADERS = {
     'User-Agent': 'TouristGuidePracticeApp/2.0 (https://example.com)'
 };
 
-// Helper function to format Wikipedia API results uniformally
 function formatPage(page) {
     return {
         id: page.pageid ? page.pageid.toString() : '',
@@ -33,7 +30,7 @@ function formatPage(page) {
     };
 }
 
-/* API: SEARCH TOURIST PLACES VIA WIKIPEDIA */
+/* API: SEARCH PLACES */
 app.get('/api/places', async (req, res) => {
     const city = req.query.city?.trim();
     if (!city) return res.status(400).json({ message: 'Enter a valid location input.' });
@@ -68,7 +65,7 @@ app.get('/api/places', async (req, res) => {
     }
 });
 
-/* API: PLACE DETAILS PROFILE QUERY */
+/* API: PLACE DETAILS */
 app.get('/api/place/:id', async (req, res) => {
     const id = req.params.id;
     try {
@@ -94,7 +91,7 @@ app.get('/api/place/:id', async (req, res) => {
     }
 });
 
-/* API: SHOP EXTRACTS WITH GEOLOCATION MAP COORDINATES (OVERPASS API) */
+/* API: SHOP EXTRACTS WITH GEOLOCATION MAP COORDINATES */
 app.get('/api/shops', async (req, res) => {
     const { lat, lon } = req.query;
     if (!lat || !lon) return res.status(400).json({ message: 'Coordinates missing' });
@@ -128,12 +125,11 @@ app.get('/api/shops', async (req, res) => {
     }
 });
 
-/* CATCH-ALL ROUTE FOR VIRTUAL SINGLE PAGE ROUTING */
+/* CATCH-ALL FOR VIRTUAL ROUTING */
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// App Initiation
 app.listen(PORT, () => {
     console.log(`Server running at http://127.0.0.1:${PORT}`);
 });

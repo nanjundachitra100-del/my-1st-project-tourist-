@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Tourist Guide - Standalone Client Fix</title>
+    <title>Smart Tourist Guide - Dashboard Fix</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -227,11 +227,10 @@
         }
     }
 
-    /* --- FIXED LOCAL COMPATIBLE AUTHENTICATION LOGIC --- */
+    /* --- SECURE BROWSER-BASED STORAGE AUTH --- */
     function handleAuthAction() {
         const email = document.getElementById("authEmail").value.trim();
         const password = document.getElementById("authPassword").value;
-        
         if (!email || !password) return alert("Please fill in all fields");
 
         let users = JSON.parse(localStorage.getItem('registered_users')) || {};
@@ -244,15 +243,20 @@
             localStorage.setItem('registered_users', JSON.stringify(users));
             alert("Account created successfully! You can now Sign In.");
             toggleAuthMode();
-            
         } else {
+            // First time use check: If no local accounts exist, register them automatically on sign in
+            if (Object.keys(users).length === 0) {
+                users[email] = password;
+                localStorage.setItem('registered_users', JSON.stringify(users));
+            }
+
             if (!users[email]) {
                 return alert("No account found with this email. Please Sign Up first.");
             }
             if (users[email] !== password) {
                 return alert("Incorrect password. Please try again.");
             }
-            
+
             currentUser = email;
             localStorage.setItem('tourist_currentUser', email);
             checkUserSession();
@@ -267,9 +271,6 @@
         document.getElementById("authTitle").innerText = isSignUpMode ? "Create Account" : "Sign In";
         document.getElementById("authBtn").innerText = isSignUpMode ? "Sign Up" : "Sign In";
         document.getElementById("authToggleMsg").innerText = isSignUpMode ? "Already have an account? Sign In" : "Don't have an account? Sign Up";
-        
-        document.getElementById("authEmail").value = "";
-        document.getElementById("authPassword").value = "";
     }
 
     function logout() {
@@ -334,7 +335,7 @@
         containerGrid.innerHTML = "";
 
         if (!places || places.length === 0) {
-            mainContainer.innerHTML = `<p style="text-align:center;color:var(--text-muted);">${emptyMessage}</p>`;
+            containerGrid.innerHTML = `<p style="text-align:center;color:var(--text-muted);">${emptyMessage}</p>`;
             return;
         }
 
@@ -374,7 +375,7 @@
 
             activeShopFilter = "all";
 
-            mainContainer.innerHTML = `
+            detailContainer.innerHTML = `
                 <div class="detail-view">
                     <button class="back-btn" onclick="window.history.back()">← Back</button>
                     <h2>${place.name}</h2>
