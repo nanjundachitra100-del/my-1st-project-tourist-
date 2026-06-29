@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Tourist Guide - Dashboard Fix</title>
+    <title>Smart Tourist Guide - Standalone Client Fix</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -227,42 +227,38 @@
         }
     }
 
-    /* --- UPDATED AUTHENTICATION FOR EXPRESS BACKEND --- */
-    async function handleAuthAction() {
+    /* --- FIXED LOCAL COMPATIBLE AUTHENTICATION LOGIC --- */
+    function handleAuthAction() {
         const email = document.getElementById("authEmail").value.trim();
         const password = document.getElementById("authPassword").value;
+        
         if (!email || !password) return alert("Please fill in all fields");
 
-        const endpoint = isSignUpMode ? '/api/auth/signup' : '/api/auth/signin';
+        let users = JSON.parse(localStorage.getItem('registered_users')) || {};
 
-        try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
+        if (isSignUpMode) {
+            if (users[email]) {
+                return alert("This email is already registered. Please sign in.");
+            }
+            users[email] = password;
+            localStorage.setItem('registered_users', JSON.stringify(users));
+            alert("Account created successfully! You can now Sign In.");
+            toggleAuthMode();
             
-            const data = await response.json();
-
-            if (!response.ok) {
-                return alert(data.message || "An authentication issue occurred.");
+        } else {
+            if (!users[email]) {
+                return alert("No account found with this email. Please Sign Up first.");
             }
-
-            if (isSignUpMode) {
-                alert(data.message);
-                toggleAuthMode(); // Flip view back to login state
-            } else {
-                // Log user in using network response payload validation
-                currentUser = data.email;
-                localStorage.setItem('tourist_currentUser', data.email);
-                checkUserSession();
-                
-                // Reset standard form state cleanly
-                document.getElementById("authEmail").value = "";
-                document.getElementById("authPassword").value = "";
+            if (users[email] !== password) {
+                return alert("Incorrect password. Please try again.");
             }
-        } catch (err) {
-            alert("Failed to communicate with the auth server.");
+            
+            currentUser = email;
+            localStorage.setItem('tourist_currentUser', email);
+            checkUserSession();
+            
+            document.getElementById("authEmail").value = "";
+            document.getElementById("authPassword").value = "";
         }
     }
 
