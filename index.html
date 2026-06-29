@@ -148,8 +148,8 @@
 <div class="container">
     <div id="authScreen" class="auth-screen">
         <h2 id="authTitle">Sign In</h2>
-        <input type="email" id="authEmail" placeholder="Email Address" value="nanjundachitra100@gmail.com">
-        <input type="password" id="authPassword" placeholder="Password" value="12345678">
+        <input type="email" id="authEmail" placeholder="Email Address">
+        <input type="password" id="authPassword" placeholder="Password">
         <button id="authBtn" onclick="handleAuthAction()">Sign In</button>
         <p class="auth-toggle" onclick="toggleAuthMode()" id="authToggleMsg">Don't have an account? Sign Up</p>
     </div>
@@ -227,24 +227,55 @@
         }
     }
 
-    /* --- SAFE LOCAL AUTH --- */
-    function handleAuthAction() {
+    /* --- UPDATED AUTHENTICATION FOR EXPRESS BACKEND --- */
+    async function handleAuthAction() {
         const email = document.getElementById("authEmail").value.trim();
         const password = document.getElementById("authPassword").value;
         if (!email || !password) return alert("Please fill in all fields");
 
-        currentUser = email;
-        localStorage.setItem('tourist_currentUser', email);
-        checkUserSession();
+        const endpoint = isSignUpMode ? '/api/auth/signup' : '/api/auth/signin';
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await response.json();
+
+            if (!response.ok) {
+                return alert(data.message || "An authentication issue occurred.");
+            }
+
+            if (isSignUpMode) {
+                alert(data.message);
+                toggleAuthMode(); // Flip view back to login state
+            } else {
+                // Log user in using network response payload validation
+                currentUser = data.email;
+                localStorage.setItem('tourist_currentUser', data.email);
+                checkUserSession();
+                
+                // Reset standard form state cleanly
+                document.getElementById("authEmail").value = "";
+                document.getElementById("authPassword").value = "";
+            }
+        } catch (err) {
+            alert("Failed to communicate with the auth server.");
+        }
     }
 
     function toggleAuthMode() {
         isSignUpMode = !isSignUpMode;
         document.getElementById("authTitle").innerText = isSignUpMode ? "Create Account" : "Sign In";
         document.getElementById("authBtn").innerText = isSignUpMode ? "Sign Up" : "Sign In";
+        document.getElementById("authToggleMsg").innerText = isSignUpMode ? "Already have an account? Sign In" : "Don't have an account? Sign Up";
+        
+        document.getElementById("authEmail").value = "";
+        document.getElementById("authPassword").value = "";
     }
 
-    // Fixed typo: mapped properly to simple reset action
     function logout() {
         localStorage.removeItem('tourist_currentUser');
         currentUser = null;
@@ -314,7 +345,7 @@
         const grid = document.createElement("div");
         grid.classList.add("places-grid");
         places.forEach(place => {
-            const isFav = favorites.includes(place.id);
+            const isFav = favorites.some(f => f.id === place.id);
             const card = document.createElement("div");
             card.classList.add("place-card");
             card.innerHTML = `
